@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Track {
+  ABAP
+  UI5
+}
+
+enum Level {
+  BEGINNER
+  EASY
+  MEDIUM
+  HARD
+  EXPERT
+}
+
+model Exercise {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  track       Track
+  level       Level
+  title       String
+  topic       String // e.g. "Hash table", "Sorted table", "Binding"
+  tags        String[]
+  description String // markdown
+  /// [{ "id": "m1", "title": "...", "detail": "..." }]
+  milestones  Json
+  starterCode String
+  hints       String[]
+  /// Reference solution + target complexity, never shown until the user asks
+  solution    String
+  targetBigO  String // e.g. "O(n)"
+  source      String       @default("seed") // seed | ai
+  createdAt   DateTime     @default(now())
+  submissions Submission[]
+  messages    ChatMessage[]
+
+  @@index([track, level])
+}
+
+model Submission {
+  id          String   @id @default(cuid())
+  exerciseId  String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise    Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  code        String
+  /// Full structured AI review (see lib/schemas.ts)
+  review      Json
+  passed      Boolean  @default(false)
+  score       Int      @default(0) // 0-100 overall
+  optimScore  Int      @default(0) // 0-100 efficiency
+  createdAt   DateTime @default(now())
+
+  @@index([userId, exerciseId, createdAt])
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  exerciseId String
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  role       String // user | model
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([userId, exerciseId, createdAt])
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model User {
+  id           String        @id @default(cuid())
+  username     String        @unique
+  passwordHash String
+  role         Role          @default(USER)
+  disabled     Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  lastLoginAt  DateTime?
+  submissions  Submission[]
+  messages     ChatMessage[]
+}
